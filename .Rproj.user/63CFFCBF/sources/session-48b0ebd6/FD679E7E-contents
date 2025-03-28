@@ -1,0 +1,199 @@
+#Lab1####
+library(tidyverse)
+load("Data/Pb_all.rda")
+getwd()
+summary(Pb_all)
+Pb_myregion <- filter(Pb_all, region == "Vasternorrland")
+summary(Pb_myregion)
+head(Pb_myregion)
+
+##1.A Linear model####
+###1.A(a)####
+ggplot(Pb_myregion, aes(x = year, y = Pb)) + geom_point()
+
+###1.A(b)####
+ggplot(Pb_myregion, aes(x = year -1975, y = Pb)) + geom_point()
+
+###1.A(c)####
+Pb_myregion_lm <- lm(Pb ~ I(year - 1975), data = Pb_myregion)
+Pb_myregion_lm
+confint(Pb_myregion_lm)
+# Predict for x0: weeks = 34
+
+# New data frame with the new x0-value(s) which must have the same 
+# name(s) as in the data frame used to fit the model.
+###1.A(d)####
+year_x0 <- data.frame(year = 1975)
+pred_x0 <- predict(Pb_myregion_lm, newdata = year_x0, se.fit = TRUE)
+pred_x0
+year_x0 <- mutate(year_x0, 
+                      fit = pred_x0$fit, 
+                      se.fit = pred_x0$se.fit)
+year_x0
+predict(Pb_myregion_lm, newdata = year_x0, interval = "confidence")
+###1.A(f)####
+#estimate the expected average lead concentration in 2014.
+Pb_myregion_sum <- summary(Pb_myregion_lm)
+Pb_myregion_sum
+year_x1 <- data.frame(year = 2014)
+pred_x1 <- predict(Pb_myregion_lm, newdata = year_x1, se.fit = TRUE)
+pred_x1
+year_x1 <- mutate(year_x1, 
+                  fit = pred_x1$fit, 
+                  se.fit = pred_x1$se.fit)
+year_x1
+predict(Pb_myregion_lm, newdata = year_x1, interval = "confidence")
+
+###1.A(g)####
+# Calculate an interval that would be expected to contain 95% of the observed lead concentrations in 2014.
+predict(Pb_myregion_lm, newdata = year_x1, interval = "prediction")
+
+###1.A(h)####
+#Plot the data together with the fitted line, 
+#a 95 % confidence interval for the fitted line and 
+#a 95 % prediction interval for new observations.
+c(min(Pb_myregion$year), max(Pb_myregion$year))
+Pb_seq <- data.frame(year = seq(1976, 2009))
+Pb_seq
+Pb_seq |> mutate(
+  fit = predict(Pb_myregion_lm, newdata = Pb_seq),
+  conf = predict(Pb_myregion_lm, newdata = Pb_seq, interval = "confidence"),
+  pred = predict(Pb_myregion_lm, newdata = Pb_seq, interval = "prediction")) -> 
+  Pb_ints
+glimpse(Pb_ints)
+head(Pb_ints)
+Pb_ints$pred[, "fit"]
+
+ggplot(Pb_ints, aes(x = year)) + 
+  geom_point(data = Pb_myregion, aes(y = Pb), size = 3) +
+  geom_line(aes(y = fit), color = "blue", linewidth = 1) +
+  geom_ribbon(aes(ymin = conf[, "lwr"], ymax = conf[, "upr"]), alpha = 0.2) +
+  geom_line(aes(y = pred[, "lwr"]), color = "red", linetype = "dashed", linewidth = 1) +
+  geom_line(aes(y = pred[, "upr"]), color = "red", linetype = "dashed", linewidth = 1) +
+  xlab("year - 1975") +
+  ylab("Lead concentration") +
+  labs(title = "Lead concentration in moss over time",
+       caption = "data, fitted line, 95% confidence and prediction intervals")
+###1.A(i-j)####
+# Calculate the residuals and plot them against the predicted values. 
+# Only works with complete data sets:
+#icecream <- mutate(icecream, yhat = icecream_lm$fitted.values)
+
+# Works for incomplete data sets as well:
+Pb_myregion <- mutate(Pb_myregion, yhat = predict(Pb_myregion_lm))
+head(Pb_myregion)
+Pb_myregion <- mutate(Pb_myregion, e = Pb_myregion_lm$residuals)
+glimpse(Pb_myregion)
+Pb_elims <- max(abs(Pb_myregion$e))*c(-1, 1)
+Pb_elims
+ggplot(data = Pb_myregion, aes(x = yhat, y = e)) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0) +
+  geom_smooth() +
+  expand_limits(y = Pb_elims) +
+  xlab("Predicted Lead concentration") +
+  ylab("Residual") +
+  labs(tag = "B") +
+  labs(title = "Residuals vs predicted values Y-hat")
+
+# Make a Q-Q-plot and a histogram for the residuals.
+ggplot(data = Pb_myregion, aes(sample = e)) +
+  geom_qq(size = 3) + geom_qq_line() +
+  labs(tag = "C") +
+  labs(title = "Normal Q-Q-plot of the residuals")
+
+ggplot(data = Pb_myregion, aes(x = e)) + 
+  geom_bar() + scale_x_binned()
+
+#The residual variance sigma^2 is not constant. It increases with increasing Yhat
+#The residuals are not normally distributed. They are skewed to the right.
+#The residuals are not randomly distributed around zero. They have a non-linear trend.
+
+
+
+###1.B(a)####
+###1.B(b-e)####
+# Plot y = log(Pb) against x = year - 1975. Does this seem like a linear relationship?
+ggplot(Pb_myregion, aes(x = year -1975, y = log(Pb))) + geom_point()
+logPb_myregion_lm <- lm(log(Pb) ~ I(year - 1975), data = Pb_myregion)
+logPb_myregion_lm
+confint(logPb_myregion_lm)
+exp(logPb_myregion_lm$coefficients)
+exp(confint(logPb_myregion_lm))
+###1.B(f)####
+#calculate a 95 % confidence interval for the expected average log-lead concentration in the year 2014
+logpred_x1 <- predict(logPb_myregion_lm, newdata = year_x1, se.fit = TRUE)
+logpred_x1
+year_x1 <- mutate(year_x1, 
+                  fit = logpred_x1$fit, 
+                  se.fit = logpred_x1$se.fit)
+year_x1
+logy_CI <- predict(logPb_myregion_lm, newdata = year_x1, interval = "confidence")
+exp(logy_CI)
+###1.B(g)####
+#Calculate a 95 % prediction interval for the logarithm of an observation of the lead concentration in the year 2014
+logy_PI <- predict(logPb_myregion_lm, newdata = year_x1, interval = "prediction")
+exp(logy_PI)
+###1.B(h)####
+#Plot the data together with the fitted line, 
+#a 95 % confidence interval for the fitted line and 
+#a 95 % prediction interval for new observations.
+c(min(Pb_myregion$year), max(Pb_myregion$year))
+Pb_seq <- data.frame(year = seq(1976, 2009))
+Pb_seq
+Pb_seq |> mutate(
+  fit = predict(logPb_myregion_lm, newdata = Pb_seq),
+  conf = predict(logPb_myregion_lm, newdata = Pb_seq, interval = "confidence"),
+  pred = predict(logPb_myregion_lm, newdata = Pb_seq, interval = "prediction")) -> 
+  logPb_ints
+glimpse(logPb_ints)
+head(logPb_ints)
+logPb_ints$pred[, "fit"]
+logPb_myregion <- Pb_myregion %>% mutate(logPb = log(Pb))
+logPb_myregion
+
+ggplot(logPb_ints, aes(x = year)) + 
+  geom_point(data = logPb_myregion, aes(y = logPb), size = 3) +
+  geom_line(aes(y = fit), color = "blue", linewidth = 1) +
+  geom_ribbon(aes(ymin = conf[, "lwr"], ymax = conf[, "upr"]), alpha = 0.2) +
+  geom_line(aes(y = pred[, "lwr"]), color = "red", linetype = "dashed", linewidth = 1) +
+  geom_line(aes(y = pred[, "upr"]), color = "red", linetype = "dashed", linewidth = 1) +
+  xlab("year - 1975") +
+  ylab("log Lead concentration") +
+  labs(title = "log Lead concentration in moss over time",
+       caption = "data, fitted line, 95% confidence and prediction intervals")
+
+
+###1.B(i)####
+# Calculate the residuals and plot them against the predicted values. 
+# Only works with complete data sets:
+#icecream <- mutate(icecream, yhat = icecream_lm$fitted.values)
+
+# Works for incomplete data sets as well:
+logPb_myregion$log_Pb <- NULL
+logPb_myregion
+logPb_myregion <- mutate(logPb_myregion, logyhat = predict(logPb_myregion_lm))
+head(logPb_myregion)
+logPb_myregion <- mutate(logPb_myregion, e1 = logPb_myregion_lm$residuals)
+glimpse(logPb_myregion)
+logPb_elims <- max(abs(logPb_myregion$e))*c(-1, 1)
+logPb_elims
+ggplot(data = logPb_myregion, aes(x = logyhat, y = e1)) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0) +
+  geom_smooth() +
+  expand_limits(y = logPb_elims) +
+  xlab("Log Predicted Lead concentration") +
+  ylab("Residual") +
+  labs(tag = "B") +
+  labs(title = "Residuals vs log predicted values Y-hat")
+
+# Make a Q-Q-plot and a histogram for the residuals.
+ggplot(data = logPb_myregion, aes(sample = e1)) +
+  geom_qq(size = 3) + geom_qq_line() +
+  labs(tag = "C") +
+  labs(title = "Normal Q-Q-plot of the residuals")
+
+ggplot(data = logPb_myregion, aes(x = e1)) + 
+  geom_bar() + scale_x_binned()
+
