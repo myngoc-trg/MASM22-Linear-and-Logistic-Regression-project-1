@@ -10,8 +10,8 @@ plasmaB_bmi <- select(plasmaB, bmi, betaplasma)
 plasmaB_bmi
 
 #1 Plasma β-carotene and body mass index
-#1(a)
-#Linear model
+##1(a)
+###Linear model
 summary(plasmaB)
 
 head(plasmaB)
@@ -34,7 +34,7 @@ ggplot(data = plasmaB_bmi, aes(x = yhat, y = e)) +
   labs(tag = "B") +
   labs(title = "Residuals vs predicted values Y-hat")
 
-# Make a Q-Q-plot and a histogram for the residuals.
+#### Make a Q-Q-plot and a histogram for the residuals.
 ggplot(data = plasmaB_bmi, aes(sample = e)) +
   geom_qq(size = 3) + geom_qq_line() +
   labs(tag = "C") +
@@ -43,7 +43,7 @@ ggplot(data = plasmaB_bmi, aes(sample = e)) +
 ggplot(data = plasmaB_bmi, aes(x = e)) + 
   geom_bar() + scale_x_binned()
 
-#Logarithm model
+###Logarithm model
 ggplot(plasmaB_bmi, aes(x = bmi, y = log(betaplasma))) + geom_point()
 logplasmaB_bmi_lm <- lm(log(betaplasma) ~ bmi, data = plasmaB_bmi)
 logplasmaB_bmi_lm
@@ -67,7 +67,7 @@ ggplot(data = logplasmaB_bmi, aes(x = yhat, y = e)) +
   labs(tag = "B") +
   labs(title = "Residuals vs log predicted values Y-hat")
 
-# Make a Q-Q-plot and a histogram for the residuals.
+#### Make a Q-Q-plot and a histogram for the residuals.
 ggplot(data = logplasmaB_bmi, aes(sample = e)) +
   geom_qq(size = 3) + geom_qq_line() +
   labs(tag = "C") +
@@ -77,7 +77,7 @@ ggplot(data = logplasmaB_bmi, aes(x = e)) +
   geom_bar() + scale_x_binned()
 
 
-# 1(b)
+## 1(b)
 CI_coeffs <- confint(logplasmaB_bmi_lm)
 logplasmaB_bmi_lm
 CI_coeffs <- mutate(logplasmaB_bmi_lm$Coeffcients, CI_coeffs)
@@ -107,7 +107,7 @@ ggplot(logplasmaB_bmi_ints, aes(x = bmi)) +
   labs(title = "Log Plasma β-carotene level varies with BMI",
        caption = "data, fitted line, 95% confidence and prediction intervals")
 
-#Transform the relationship back to betaplasma =e^Beta0*e^Beta1*bmi*e^epsiloni
+###Transform the relationship back to betaplasma =e^Beta0*e^Beta1*bmi*e^epsiloni
 logplasmaB_bmi_ints
 backlogplasmaB_bmi_ints <- logplasmaB_bmi_ints %>% 
   mutate(across(-bmi, exp))
@@ -123,19 +123,159 @@ ggplot(backlogplasmaB_bmi_ints, aes(x = bmi)) +
   labs(title = "Plasma β-carotene level varies with BMI",
        caption = "data, fitted line, 95% confidence and prediction intervals")
 
-# 1(c)
-# (i) When BMI is increased by 1 unit 
+## 1(c)
+### (i) When BMI is increased by 1 unit 
 plasmaB_bmiplus1_lm <- lm(betaplasma ~ I(bmi + 1), data = plasmaB_bmi)
 plasmaB_bmiplus1_lm
 confint(plasmaB_bmiplus1_lm)
 
-# (ii) When BMI is decreased by 1 unit 
+### (ii) When BMI is decreased by 1 unit 
 plasmaB_bmiminus1_lm <- lm(betaplasma ~ I(bmi - 1), data = plasmaB_bmi)
 confint(plasmaB_bmiminus1_lm)
 confint(plasmaB_bmi_lm)
 
-# (iii) When BMI is decreased by 10 unit 
+### (iii) When BMI is decreased by 10 unit 
 plasmaB_bmiminus10_lm <- lm(betaplasma ~ I(bmi - 10), data = plasmaB_bmi)
 confint(plasmaB_bmiminus10_lm)
 
 # Obs: CI for B1 is unchanged while the CI for intercept B0 changes due to the change in BMI
+
+## 1(d) Lec.4
+
+#2 Plasma β-carotene and smoking habit
+## 2(a), turn the categorical variable smokstat into a factor variable
+glimpse(plasmaB)
+mutate(plasmaB,
+       smokstat = factor(smokstat,
+                     levels = c(1, 2, 3),
+                     labels = c("never", "former", "current"))) -> plasmaB
+plasmaB$soil <- NULL
+glimpse(plasmaB)
+plasmaB_lm <- lm(betaplasma ~ smokstat, data = plasmaB)
+plasmaB_sum <- summary(plasmaB_lm)
+plasmaB_sum
+confint(plasmaB_lm)
+
+plasmaB_x0 <- data.frame(smokstat = c("never", "former", "current"))
+cbind(plasmaB_x0,
+      predict(plasmaB_lm, plasmaB_x0, se.fit = TRUE),
+      conf = predict(plasmaB_lm, plasmaB_x0, interval = "confidence"),
+      pred = predict(plasmaB_lm, plasmaB_x0, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(plasmaB_sum$sigma^2 + se.fit^2))
+logplasmaB_lm <- lm(log(betaplasma) ~ smokstat, data = plasmaB)
+logplasmaB_lm
+logplasmaB_sum <- summary(logplasmaB_lm)
+logplasmaB_sum
+
+cbind(plasmaB_x0,
+      predict(logplasmaB_lm, plasmaB_x0, se.fit = TRUE),
+      conf = predict(logplasmaB_lm, plasmaB_x0, interval = "confidence"),
+      pred = predict(logplasmaB_lm, plasmaB_x0, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(logplasmaB_sum$sigma^2 + se.fit^2))
+# ANSWER: which category would be suited to use as reference category
+# Never??? Maybe 
+?boxplot
+boxplot(plasmaB)
+
+# Create boxplots & violin plots for plasma β-carotene
+p1 <- ggplot(plasmaB, aes(x = smokstat, y = betaplasma, fill = smokstat)) +
+  geom_violin(alpha = 0.5) +  # Violin plot
+  geom_boxplot(width = 0.2, outlier.shape = NA) +  # Boxplot overlay
+  theme_minimal() +
+  labs(title = "Plasma β-Carotene by Smoking Status",
+       x = "Smoking Status",
+       y = "Plasma β-Carotene (mg/kg)") +
+  scale_fill_brewer(palette = "Pastel1")
+p1
+
+p2 <- ggplot(plasmaB, aes(x = smokstat, y = log(betaplasma), fill = smokstat)) +
+  geom_violin(alpha = 0.5) +  # Violin plot
+  geom_boxplot(width = 0.2, outlier.shape = NA) +  # Boxplot overlay
+  theme_minimal() +
+  labs(title = "Log Plasma β-Carotene by Smoking Status",
+       x = "Smoking Status",
+       y = "Log Plasma β-Carotene (mg/kg)") +
+  scale_fill_brewer(palette = "Pastel1")
+p2
+# p1 is highly skewed, p2 is more symmetric
+# So we should still use log plasma B as dependent variable
+
+## 2(b)
+# "never" as reference
+plasmaB <- mutate(plasmaB, smokstat = relevel(smokstat, "never"))
+# B0 is "never", B1 "former", B2 "current"
+logplasmaB_lm <- lm(log(betaplasma) ~ smokstat, data = plasmaB)
+logplasmaB_sum <- summary(logplasmaB_lm)
+logplasmaB_sum
+
+# "current" as reference
+# B0 is "current", B1 is "never", B2 is "never"
+plasmaB_current <- mutate(plasmaB, smokstat = relevel(smokstat, "current"))
+# B0 is "never", B1 "former", B2 "current"
+logplasmaB_current_lm <- lm(log(betaplasma) ~ smokstat, data = plasmaB_current)
+logplasmaB_current_sum <- summary(logplasmaB_current_lm)
+logplasmaB_current_sum
+# Model with "never" reference has lower std. errors
+# EXPLAIN?
+
+
+## 2(c)
+cbind(plasmaB_x0,
+      predict(logplasmaB_lm, plasmaB_x0, se.fit = TRUE),
+      conf = predict(logplasmaB_lm, plasmaB_x0, interval = "confidence"),
+      pred = predict(logplasmaB_lm, plasmaB_x0, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(logplasmaB_sum$sigma^2 + se.fit^2))
+
+cbind(plasmaB_x0,
+      predict(logplasmaB_current_lm, plasmaB_x0, se.fit = TRUE),
+      conf = predict(logplasmaB_current_lm, plasmaB_x0, interval = "confidence"),
+      pred = predict(logplasmaB_current_lm, plasmaB_x0, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(logplasmaB_current_sum$sigma^2 + se.fit^2))
+
+# Relate these expected values to the corresponding means in 2(a
+# Explain why the predictions and their confidence intervals are the same regardless of which model version you used
+
+#3 Multiple linear regression
+## 3(a)
+# Turn sex and vituse into factor variables
+glimpse(plasmaB)
+mutate(plasmaB,
+       sex = factor(sex,
+                         levels = c(1, 2),
+                         labels = c("male", "female"))) -> plasmaB
+
+mutate(plasmaB,
+       vituse = factor(vituse,
+                         levels = c(1, 2, 3),
+                         labels = c("often", "sometimes", "no"))) -> plasmaB
+plasmaB_x1 <- data.frame(sex = c("male", "female"))
+
+
+plasmaB_sex_lm <- lm(betaplasma ~ sex, data = plasmaB)
+plasmaB_sex_sum <- summary(plasmaB_sex_lm)
+cbind(plasmaB_x1,
+      predict(plasmaB_sex_lm, plasmaB_x1, se.fit = TRUE),
+      conf = predict(plasmaB_sex_lm, plasmaB_x1, interval = "confidence"),
+      pred = predict(plasmaB_sex_lm, plasmaB_x1, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(plasmaB_sex_sum$sigma^2 + se.fit^2))
+
+plasmaB_x2 <- data.frame(vituse = c("often", "sometimes", "no"))
+plasmaB_vituse_lm <- lm(betaplasma ~ vituse, data = plasmaB)
+plasmaB_vituse_sum <- summary(plasmaB_vituse_lm)
+cbind(plasmaB_x2,
+      predict(plasmaB_vituse_lm, plasmaB_x2, se.fit = TRUE),
+      conf = predict(plasmaB_vituse_lm, plasmaB_x2, interval = "confidence"),
+      pred = predict(plasmaB_vituse_lm, plasmaB_x2, interval = "prediction")) |>
+  mutate(df = NULL, residual.scale = NULL,
+         conf.fit = NULL, pred.fit = NULL,
+         se.pred = sqrt(plasmaB_vituse_sum$sigma^2 + se.fit^2))
