@@ -38,10 +38,11 @@ ggplot(data = plasmaB_bmi, aes(x = yhat, y = e)) +
 ggplot(data = plasmaB_bmi, aes(sample = e)) +
   geom_qq(size = 3) + geom_qq_line() +
   labs(tag = "C") +
-  labs(title = "Normal Q-Q-plot of the residuals")
+  labs(title = "Normal Q-Q-plot of the residuals model 1")
 
 ggplot(data = plasmaB_bmi, aes(x = e)) + 
-  geom_bar() + scale_x_binned()
+  geom_bar() + scale_x_binned() +
+  labs(title = "Histogram for the residuals model 1")
 
 ###Logarithm model
 ggplot(plasmaB_bmi, aes(x = bmi, y = log(betaplasma))) + geom_point()
