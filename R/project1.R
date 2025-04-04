@@ -5,6 +5,11 @@ list.files("Data")  # Check if 'carotene.xlsx' is inside the "Data" folder
 install.packages("readxl")  # Only run once if not installed
 library(readxl)
 library(dplyr)  # Load dplyr for select()
+# Lecture 3 - Elasticity - multiple linear regression
+
+library(car)
+library(rstatix)
+library(GGally)
 plasmaB <- read_excel("Data/carotene.xlsx")
 plasmaB_bmi <- select(plasmaB, bmi, betaplasma)
 plasmaB_bmi
@@ -142,6 +147,15 @@ confint(plasmaB_bmiminus10_lm)
 # Obs: CI for B1 is unchanged while the CI for intercept B0 changes due to the change in BMI
 
 ## 1(d) Lec.4
+# Test whether there is a significant (α = 5 %) linear relationship between log plasma β-carotene BMI
+# t-test
+# Hypotheses. H0: B_1 = 0, H1: B_1 not = 0
+glimpse(logplasmaB_bmi)
+head(logplasmaB_bmi)
+logplasmaB_bmi_sum <- summary(logplasmaB_bmi_lm)
+logplasmaB_bmi_sum
+# Distibution of B_1 when H0 true is t(315-1)
+# p-value very small, can reject H0 with very high significance level
 
 #2 Plasma β-carotene and smoking habit
 ## 2(a), turn the categorical variable smokstat into a factor variable
@@ -244,9 +258,20 @@ cbind(plasmaB_x0,
 # Relate these expected values to the corresponding means in 2(a
 # Explain why the predictions and their confidence intervals are the same regardless of which model version you used
 
+## 2(d)
+# Perform a suitable test for whether there are significant (α = 5 %) differences in log plasma β-caroteneLec between any of the smokstat categories
+logplasmaB_sum
+# Global F-test
+# Hypotheses. H0: B_1 = B_2 = 0, H1: B_j not 0
+# F_obs = 5.75 = MS(Regr) / MS(Error)
+# F(2, 312)
+# p < 0.05, reject H0
+# There is significant difference in logplasmaB between any of the smokstat categories 
+
 #3 Multiple linear regression
 ## 3(a)
 # Turn sex and vituse into factor variables
+# 
 glimpse(plasmaB)
 mutate(plasmaB,
        sex = factor(sex,
@@ -280,3 +305,43 @@ cbind(plasmaB_x2,
   mutate(df = NULL, residual.scale = NULL,
          conf.fit = NULL, pred.fit = NULL,
          se.pred = sqrt(plasmaB_vituse_sum$sigma^2 + se.fit^2))
+
+table(plasmaB$sex)
+table(plasmaB$vituse)
+
+# "female" as sex will be reference as bigger category
+# "often" as vitus: reference
+
+# 3(b)
+# Calculate pairwise correlations between the continuous x-variables bmi, age, calories, fat, cholesterol, fiber, alcohol, and betadiet
+plasmaB |> select(bmi, age, calories, fat, cholesterol, fiber, alcohol, betadiet) |> 
+  cor_test() |> filter(var1 < var2)
+
+plasmaB |> select(bmi, age, calories, fat, cholesterol, fiber, alcohol, betadiet) |> 
+  cor_test() |> filter(var1 < var2, abs(cor) > 0.6) 
+
+# Compute correlation matrix and filter strong correlations
+highcor <- plasmaB |> 
+  select(bmi, age, calories, fat, cholesterol, fiber, alcohol, betadiet) |> 
+  cor_test() |> 
+  as.data.frame()  
+  filter(var1 < var2, abs(cor) > 0.6)  # Keep only strong correlations
+highcor
+# Extract variable names with strong correlation
+highcor <- unique(c(highcor$var1, highcor$var2))
+
+# Plot pairwise relationships for selected variables
+plasmaB |> 
+  select(all_of(highcor)) |> 
+  ggpairs(lower = list(continuous = wrap("points", size = 0.5)))
+
+# Is the person consuming the equivalent 200 alcoholic drinks, corresponding to 12 bottles of Absolut Vodka, each week, extreme in any other variables as well?
+# Alcohol and calories should be correlated
+# Plot alcohol vs calories
+ggplot(data = plasmaB, mapping = aes(x = alcohol, y = calories)) +
+  geom_point(size = 1)
+# There is some significant relationship between alcohol vs calories
+# It seems like alcohol consumption increases calrories consumption very largely
+
+
+# 3(c)
