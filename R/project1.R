@@ -223,9 +223,9 @@ p2
 # "never" as reference
 plasmaB <- mutate(plasmaB, smokstat = relevel(smokstat, "never"))
 # B0 is "never", B1 "former", B2 "current"
-logplasmaB_lm <- lm(log(betaplasma) ~ smokstat, data = plasmaB)
-logplasmaB_sum <- summary(logplasmaB_lm)
-logplasmaB_sum
+logplasmaB_smokstat_lm <- lm(log(betaplasma) ~ smokstat, data = plasmaB)
+logplasmaB_smokstat_sum <- summary(logplasmaB_smokstat_lm)
+logplasmaB_smokstat_sum
 
 # "current" as reference
 # B0 is "current", B1 is "never", B2 is "never"
@@ -345,3 +345,270 @@ ggplot(data = plasmaB, mapping = aes(x = alcohol, y = calories)) +
 
 
 # 3(c)
+# Ignore any potential problems 
+# a model where log plasma β-carotene depends on all the other variables, bmi, age, calories, fat, cholesterol, fiber, alcohol, betadiet, smokstat, sex, and vituse
+head(plasmaB)
+glimpse(plasmaB)
+?lm
+logplasmaB_all_lm <- lm(log(betaplasma) ~ bmi + age + calories + fat + cholesterol + fiber + alcohol + betadiet + smokstat + sex + vituse, data = plasmaB)
+logplasmaB_all_sum <- summary(logplasmaB_all_lm)
+logplasmaB_all_sum
+# Present the VIF/GVIF-values for the variables
+# dicate any variables where more than 80 % of the variablility can be explained using the other x-variables
+vif(logplasmaB_all_lm)
+# calories: GVIF^(1/(2*Df)) = 3.63 > 3.16
+# calories has large dependency on other variables
+
+# Remove the most problematic x-variable and refit the model without it 
+# (Model.3(c)). 
+# Present, and comment on, the new VIF/GVIF-values.
+logplasmaB_wocalories_lm <- lm(log(betaplasma) ~ bmi + age + fat + cholesterol + fiber + alcohol + betadiet + smokstat + sex + vituse, data = plasmaB)
+logplasmaB_wocalories_sum <- summary(logplasmaB_wocalories_lm)
+logplasmaB_wocalories_sum
+vif(logplasmaB_wocalories_lm)
+# The model looks good with GVIF-values
+
+
+# 3(d)
+logplasmaB_wocalories_sum
+# x1 = bmi, x2 = age, x3 = fat, x4 = cholesterol, x5 = fiber, x6 = alcohol, x7 = betadiet, 
+# Dummy variales: x8 = smokstatformer, x9 = smokstatcurrent, x10 = smokstatcurrent
+# Dummy variables: x11 = sexfemale
+# Dummy variables: x12 = vitusesometimes, x12 = vituseno
+# Model: Y_i = x_i.T dot B + epsilon_i
+
+# 3(d) i
+# Is there a significant relationship between log plasma β-carotene and BMI, given the other variables in the model?
+# p-value for B_bmi  is very small, can reject H0 with a very high significance level
+# i.e. there is a significant relationship between log plasma and bmi
+
+# 3(d) ii
+# Is this model significantly better than Model 1(b),which used only bmi?
+# Partial F-test
+logplasmaB_bmi_lm
+anova(logplasmaB_bmi_lm, logplasmaB_wocalories_lm)
+# p-value very small, reject H0
+# This new model is significantly better
+
+# 3(d) iii
+# Is this model significantly better than Model 2(b),which used only smokstat?
+# Partial F-test
+anova(logplasmaB_smokstat_lm, logplasmaB_wocalories_lm)
+# p-value very small, reject H0
+# This new model is significantly better
+
+
+# 3(e)
+# Make a visual inspection of the studentized residuals for Model 3(C)
+# looking for outliers, non-constant variance, and non-normality, using suitable plots with suitable reference line
+plasmaB <- mutate(plasmaB, sex = relevel(sex, "female"))
+plasmaB_wocalories_lm <- lm(betaplasma ~ bmi + age + fat + cholesterol + fiber + alcohol + betadiet + smokstat + sex + vituse, data = plasmaB)
+plasmaB_wocalories_sum <- summary(plasmaB_wocalories_lm)
+plasmaB_wocalories_sum
+logplasmaB_wocalories_sum
+plasmaB_pred <- mutate(plasmaB, 
+                       yhat_linear = predict(plasmaB_wocalories_lm),
+                       r_linear = rstudent(plasmaB_wocalories_lm),
+                       yhat_log = predict(logplasmaB_wocalories_lm),
+                   r_log = rstudent(logplasmaB_wocalories_lm),
+                   v_log = hatvalues(logplasmaB_wocalories_lm),
+                   D_log = cooks.distance(logplasmaB_wocalories_lm))
+glimpse(plasmaB_pred)
+logplasmaB_wocalories_sum
+highlightcolors <- c("|r*|>3" = "red")
+
+ggplot(plasmaB_pred, aes(x = yhat_log, y = r_log)) +
+  geom_point() +
+  geom_hline(yintercept = c(-2, 0, 2)) +
+  geom_hline(yintercept = c(-3, 3), linetype = 2) +
+  geom_point(data = filter(plasmaB_pred, abs(r_log) > 3), 
+             aes(color = "|r*|>3"), size = 3) +
+  labs(title = "Studentized residuals vs log predictor",
+       subtitle = "Log-lin model",
+       color = "Highlight") +
+  scale_color_manual(values = highlightcolors) +
+  theme(legend.position = "bottom")
+# Looks good-ish
+
+
+# 3(f)
+# Calculate the leverage for Model 3(c)
+# plot them against the linear predictor, with suitable reference lines.
+# with 1/n and 2(p+1)/n horizontal lines:
+# p+1 = 
+pplus1 <- length(logplasmaB_wocalories_lm$coefficients)
+n <- nobs(logplasmaB_wocalories_lm)
+glimpse(plasmaB_pred)
+highlightcolors <- c("|r*|>3" = "red",
+                     "largest leverage" = "magenta", 
+                     "all data" = "orange")
+ggplot(cbind(plasmaB_pred), aes(x = yhat_linear, y = v_log)) +
+  geom_point(size = 2) +
+  #geom_point(data = filter(plasmaB_pred, calories < 30), 
+             #aes(color = "calories<30"), size = 3) +
+  geom_hline(yintercept = 1/n) +
+  geom_hline(yintercept = 2*pplus1/n, color = "red") +
+  labs(title = "Leverage for log-lin model vs predicted plasmaB",
+       caption = "y = 1/n (black) and 2(p+1)/n (red)",
+       color = "Highlight") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = highlightcolors)
+
+which_max_leverage <- which.max(plasmaB_pred$v_log)
+which_max_leverage
+which_max_leverage <- as.data.frame(plasmaB_pred[which_max_leverage, ])
+glimpse(plasmaB_pred)
+# The one has max leverage has extremely low calories intake (27.9), extremely high cholesterol, 
+# and relatively high fat 64.3 > 3rd qu., high alcohol intake, betadiet
+# This is potentially influential obs, far from the centre of gravity of X-space
+# May not be actually influential
+# Let's do more test, exclusion?
+# Using suitable plots? what?
+
+
+ggplot(plasmaB_pred, aes(calories, betaplasma)) + geom_point() +
+  geom_point(data = which_max_leverage, 
+             aes(color = "largest leverage"), size = 3) +
+  labs(title = "Betaplasma by calories",
+       sutitle = "including the strange one",
+       color = "Highlight") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = highlightcolors)
+
+ggplot(plasmaB_pred, aes(alcohol, betaplasma)) + geom_point() +
+  geom_point(data = which_max_leverage, 
+             aes(color = "largest leverage"), size = 3) +
+  labs(title = "Betaplasma by alcohol intake",
+       sutitle = "including the strange one",
+       color = "Highlight") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = highlightcolors)
+
+
+# Maybe not necessary to include this residual plot to show where the largest leverage one locates
+# Not sure
+ggplot(plasmaB_pred, aes(x = yhat_log, y = r_log)) +
+  geom_point() +
+  geom_point(data = which_max_leverage, 
+             aes(color = "largest leverage"), size = 3) +
+  geom_hline(yintercept = c(-2, 0, 2)) +
+  geom_hline(yintercept = c(-3, 3), linetype = 2) +
+  geom_point(data = filter(plasmaB_pred, abs(r_log) > 3), 
+             aes(color = "|r*|>3"), size = 3) +
+  labs(title = "Studentized residuals vs log predictor",
+       subtitle = "Log-lin model",
+       color = "Highlight") +
+  scale_color_manual(values = highlightcolors) +
+  theme(legend.position = "bottom")
+# residual for that weird person is fine tho?
+# what plots?
+
+ggplot(plasmaB_pred, aes(x = yhat_log, y = sqrt(abs(r_log)))) +
+  geom_point() +
+  geom_hline(yintercept = c(0, sqrt(qnorm(0.75)), sqrt(2))) +
+  geom_hline(yintercept = sqrt(3), linetype = 2) +
+  geom_point(data = filter(cod_pred, abs(r_linear) > 3), 
+             aes(color = "|r*|>3"), size = 3) +
+  labs(title = "Sqrt absolute studentized residuals vs l predictor",
+       subtitle = "Lin-lin model",
+       color = "Highlight") +
+  scale_color_manual(values = highlightcolors) +
+  theme(legend.position = "bottom")
+
+
+# 3(g)
+# Calculate Cook’s distance for Model.3(c) and plot against the linear predictor
+f1.plasmaB <- pplus1
+f2.plasmaB <- logplasmaB_wocalories_lm$df.residual
+cook.limit.plasmaB <- qf(0.5, f1.plasmaB, f2.plasmaB)
+glimpse(plasmaB_pred)
+ggplot(plasmaB_pred, aes(yhat_linear, D_log)) + 
+  geom_point(size = 1) +
+  geom_point(data = which_max_leverage, 
+             aes(color = "largest leverage"), size = 3) +
+  geom_hline(yintercept = cook.limit.plasmaB, color = "red") +
+  geom_hline(yintercept = 4/n, linetype = 2, color = "red") +
+  xlab("Fitted values for linear predictor") +
+  ylab("D_i") +
+  labs(title = "Pike: Cook's D",
+       caption = "4/n (dashed), F_0.5, p+1, n-(p+1) (solid)",
+       color = "Highlight") +
+  scale_color_manual(values = highlightcolors)
+# The one with largest leverage doesn't seem to have a large influence
+
+which_max_cook <- which.max(plasmaB_pred$D_log)
+which_max_cook
+which_max_cook <- as.data.frame(plasmaB_pred[which_max_cook,])
+summary(plasmaB_pred)
+
+# Calculate the DFBETAS
+glimpse(dfbetas(logplasmaB_wocalories_lm))
+# Identify the β-parameters that have been affected
+glimpse(logplasmaB_wocalories_sum)
+plasmaB_pred <- mutate(
+  plasmaB_pred,
+  df0 = dfbetas(logplasmaB_wocalories_lm)[, "(Intercept)"],
+  df1 = dfbetas(logplasmaB_wocalories_lm)[, "bmi"],
+  df2 = dfbetas(logplasmaB_wocalories_lm)[, "age"],
+  df3 = dfbetas(logplasmaB_wocalories_lm)[, "fat"],
+  df4 = dfbetas(logplasmaB_wocalories_lm)[, "cholesterol"],
+  df5 = dfbetas(logplasmaB_wocalories_lm)[, "fiber"],
+  df6 = dfbetas(logplasmaB_wocalories_lm)[, "alcohol"],
+  df7 = dfbetas(logplasmaB_wocalories_lm)[, "betadiet"],
+  df8 = dfbetas(logplasmaB_wocalories_lm)[, "smokstatformer"],
+  df9 = dfbetas(logplasmaB_wocalories_lm)[, "smokstatcurrent"],
+  df10 = dfbetas(logplasmaB_wocalories_lm)[, "sexmale"],
+  df11 = dfbetas(logplasmaB_wocalories_lm)[, "vitusesometimes"],
+  df12 = dfbetas(logplasmaB_wocalories_lm)[, "vituseno"])
+highlightshapes <- c("Cook's D>0.1" = 24)
+ggplot(plasmaB_pred, aes(x = yhat_linear, y = df4)) +
+  geom_point(size = 2) +
+  geom_point(data = filter(plasmaB_pred, abs(r_log) > 3),
+             aes(color = "|r*|>3"), size = 3) +
+  geom_point(data = filter(plasmaB_pred, D_log > 0.1),
+             aes(shape = "Cook's D>0.1"),
+             size = 3) +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = sqrt(cook.limit.plasmaB)*c(-1, 1),
+             color = "red") +
+  geom_hline(yintercept = 2/sqrt(n)*c(-1, 1),
+             color = "red", linetype = "dashed") +
+  ylab("DFBETAS_0(i)") +
+  xlab("Fitted values for log predictor") +
+  labs(title = "Pike: DFBETAS_0: impact on the intercept",
+       #subtitle = "without the strange fish",
+       caption = "y = sqrt(F_0.5) and 2/sqrt(n)") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = highlightcolors) +
+  scale_shape_manual(values = highlightshapes)
+
+#df4,df1, df10, df11, 
+# df4, cholesterol seems to bed affected by the yhat_log = 4.3
+which_max_df4 <- which.max(plasmaB_pred$df4)
+which_max_df4
+which_max_df4 <- as.data.frame(plasmaB_pred[which_max_df4,])
+
+# Ilustrate by plotting the relevant DFBETAS against the corresponding x-variable, with suitable reference lines
+ggplot(plasmaB_pred, aes(x = cholesterol, y = df4)) +
+  geom_point(size = 2) +
+  geom_point(data = filter(plasmaB_pred, abs(r_log) > 3),
+             aes(color = "|r*|>3"), size = 3) +
+  geom_point(data = filter(plasmaB_pred, D_log > 0.1),
+             aes(shape = "Cook's D>0.1"),
+             size = 3) +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = sqrt(cook.limit.plasmaB)*c(-1, 1),
+             color = "red") +
+  geom_hline(yintercept = 2/sqrt(n)*c(-1, 1),
+             color = "red", linetype = "dashed") +
+  ylab("DFBETAS_0(i)") +
+  xlab("x-values for cholesterol") +
+  labs(title = "Pike: DFBETAS_0: impact on the intercept",
+       #subtitle = "without the strange fish",
+       caption = "y = sqrt(F_0.5) and 2/sqrt(n)") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = highlightcolors) +
+  scale_shape_manual(values = highlightshapes)
+
+# High cholesterol value decreases the Beta_4 parameters
+# Explain why the observation has had a large influence on the estimate, with the help of suitable plots
